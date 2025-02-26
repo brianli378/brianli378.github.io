@@ -261,6 +261,18 @@
             background: #4a6fa5;
             cursor: pointer;
         }
+
+        @media (max-width: 900px) {
+            .months-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .months-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -304,7 +316,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-
             const monthsContainer = document.getElementById('monthsContainer');
             const currentYearElement = document.getElementById('currentYear');
             const prevYearBtn = document.getElementById('prevYearBtn');
@@ -324,6 +335,7 @@
             let selectedDate = null;
             let happinessData = {};
             let chart = null;
+            const storageKey = 'happinessTrackerData';
 
             const monthNames = [
                 'January', 'February', 'March', 'April', 'May', 'June',
@@ -331,6 +343,65 @@
             ];
 
             const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+            function loadDataFromStorage() {
+                try {
+                    const data = localStorage.getItem(storageKey);
+                    if (data) {
+                        happinessData = JSON.parse(data);
+                    }
+                } catch (error) {
+                    console.error('Failed to load data from localStorage:', error);
+                    happinessData = {};
+                }
+            }
+
+            function saveDataToStorage() {
+                try {
+                    localStorage.setItem(storageKey, JSON.stringify(happinessData));
+                } catch (error) {
+                    console.error('Failed to save data to localStorage:', error);
+                    
+                    if (error.name === 'SecurityError' || error.name === 'QuotaExceededError') {
+                        fallbackToCookieStorage();
+                    }
+                }
+            }
+
+            function fallbackToCookieStorage() {
+                try {
+                    const jsonStr = JSON.stringify(happinessData);
+                    document.cookie = `${storageKey}=${encodeURIComponent(jsonStr)};path=/;max-age=31536000`;
+                } catch (error) {
+                    console.error('Failed to save data to cookies:', error);
+                }
+            }
+
+            function loadDataFromCookies() {
+                try {
+                    const cookies = document.cookie.split(';');
+                    for (const cookie of cookies) {
+                        const [name, value] = cookie.trim().split('=');
+                        if (name === storageKey && value) {
+                            happinessData = JSON.parse(decodeURIComponent(value));
+                            return true;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to load data from cookies:', error);
+                }
+                return false;
+            }
+
+            function initStorage() {
+                try {
+                    loadDataFromStorage();
+                } catch (error) {
+                    if (!loadDataFromCookies()) {
+                        happinessData = {};
+                    }
+                }
+            }
 
             function getHappinessValue(year, month, day) {
                 const dateKey = `${year}-${month + 1}-${day}`;
@@ -340,6 +411,7 @@
             function setHappinessValue(year, month, day, value) {
                 const dateKey = `${year}-${month + 1}-${day}`;
                 happinessData[dateKey] = value;
+                saveDataToStorage();
             }
 
             function createCalendar() {
@@ -371,7 +443,6 @@
                     daysGrid.className = 'days-grid';
 
                     const daysInMonth = new Date(currentYear, monthIndex + 1, 0).getDate();
-                    
                     const firstDay = new Date(currentYear, monthIndex, 1).getDay();
 
                     for (let i = 0; i < firstDay; i++) {
@@ -449,7 +520,6 @@
                     }
                 }
 
-                // Sort dates
                 const sortedData = dates.map((date, index) => ({
                     date: date,
                     value: values[index]
@@ -519,6 +589,7 @@
                 });
             }
 
+            initStorage();
             createCalendar();
 
             prevYearBtn.addEventListener('click', function() {
@@ -584,6 +655,10 @@
                         createChart();
                     }
                 }
+            });
+
+            window.addEventListener('beforeunload', function() {
+                saveDataToStorage();
             });
         });
     </script>
